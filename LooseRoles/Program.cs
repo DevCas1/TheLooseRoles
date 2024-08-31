@@ -46,8 +46,8 @@ public class Program
                 x.GetRequiredService<DiscordSocketClient>(),
                 _interactionServiceConfig
             ))
-            .AddSingleton<InteractionHandler>()
-            .AddSingleton<RolesManager>();
+            .AddSingleton<InteractionHandler>();
+            // .AddSingleton<RolesManager>();
 
         _services = serviceCollection.BuildServiceProvider();
 
@@ -71,9 +71,9 @@ public class Program
         await discordClient.LoginAsync(TokenType.Bot, _configuration["discord:token"]);
         await discordClient.StartAsync();
 
-        var rolesManager = _services.GetRequiredService<RolesManager>();
-        discordClient.ReactionAdded += rolesManager.OnReactionAdded;
-        discordClient.ReactionRemoved += rolesManager.OnReactionRemoved;
+        // var rolesManager = _services.GetRequiredService<RolesManager>();
+        // discordClient.ReactionAdded += rolesManager.OnReactionAdded;
+        // discordClient.ReactionRemoved += rolesManager.OnReactionRemoved;
 
         // Never quit the program until manually forced to.
         await Task.Delay(Timeout.Infinite);
