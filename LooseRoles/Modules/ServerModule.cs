@@ -12,7 +12,6 @@ public partial class ServerModule(
     IConfiguration configuration
 ) : InteractionModuleBase<SocketInteractionContext>
 {
-
     private const string ROLE_BUTTON_ID_BASE = "role_button_id_";
     private const string ROLE_BUTTON_ID_WITH_WILDCARD = ROLE_BUTTON_ID_BASE + "*";
 
@@ -20,26 +19,29 @@ public partial class ServerModule(
     private readonly IConfiguration _configuration = configuration;
     private readonly Logger<ServerModule> _logger = new();
 
-    private ulong[] configuredRoles = [];
+    private ulong[] loadedRoleIDs = [];
 
-    private bool LoadConfiguredRoles()
+    private bool LoadConfiguredRoleIDs()
     {
-        try
-        {
-            configuredRoles =
-                _configuration
-                    .GetSection("discord:roleIds")
-                    .GetChildren()
-                    .Select(x => ulong.Parse(x.Value)) //TODO: Fix possible null reference for x
-                    .ToArray();
-        }
-        catch (InvalidCastException)
-        {
-            string message = "Could not cast results of to ulong!";
-            _logger.LogError(message);
-            // await RespondAsync(message, ephemeral: true);
-            return false;
-        }
+        loadedRoleIDs = _configuration.GetSection("discord:roleIds")
+                                      .GetChildren()
+                                      .Select(role =>
+                                      {
+                                          if (ulong.TryParse(role.Value, out ulong parsedRoleID))
+                                              return (ulong?)parsedRoleID;
+                                          else
+                                          {
+                                              _logger.LogInformation($"Could not parse configured role ID \"{role.Value}\" to ulong, skipping entry.");
+                                              return null;
+                                          }
+                                      })
+                                      .Where(id => id.HasValue)
+#pragma warning disable CS8629 // Nullable value type may be null.
+                                      .Select(id => id.Value)
+#pragma warning restore CS8629 // id.Value cannot be null due to Where(id => id.HasValue) above it, compiler disagrees
+                                      .ToArray();
+
+        _logger.LogInformation($"Parsed the following configured roles: [{string.Join(", ", loadedRoleIDs)}]");
 
         return true;
     }
@@ -47,11 +49,11 @@ public partial class ServerModule(
     [SlashCommand("show-configured-roles", "FOR TESTING PURPOSES, MAY BE REMOVED AT SOME POINT!")]
     public async Task ShowConfiguredRoles()
     {
-        if (configuredRoles.Length == 0)
+        if (loadedRoleIDs.Length == 0)
         {
-            LoadConfiguredRoles();
+            LoadConfiguredRoleIDs();
 
-            if (configuredRoles.Length == 0)
+            if (loadedRoleIDs.Length == 0)
             {
                 await RespondAsync("Configured roles could not be loaded! Aborting command.", ephemeral: true);
                 return;
@@ -62,8 +64,8 @@ public partial class ServerModule(
             .WithAuthor(Context.User.ToString(), Context.User.GetAvatarUrl() ?? Context.User.GetDefaultAvatarUrl())
             .WithTitle("Configured Roles")
             .WithDescription(
-                configuredRoles.Length + " roles found\n" +
-                string.Join("\n  ", configuredRoles.Select(x => $"{Context.Guild.GetRole(x).Mention} (ID: {x})")))
+                loadedRoleIDs.Length + " roles found\n" +
+                string.Join("\n  ", loadedRoleIDs.Select(x => $"{Context.Guild.GetRole(x).Mention} (ID: {x})")))
             .WithColor(Color.Purple)
             .WithCurrentTimestamp();
 
@@ -75,11 +77,11 @@ public partial class ServerModule(
     {
         await RespondAsync("Sending self-assign message...", ephemeral: true);
 
-        if (configuredRoles.Length == 0)
+        if (loadedRoleIDs.Length == 0)
         {
-            LoadConfiguredRoles();
+            LoadConfiguredRoleIDs();
 
-            if (configuredRoles.Length == 0)
+            if (loadedRoleIDs.Length == 0)
             {
                 await RespondAsync("Configured roles could not be loaded! Aborting command.", ephemeral: true);
                 return;
@@ -88,7 +90,7 @@ public partial class ServerModule(
 
         ComponentBuilder componentBuilder = new ComponentBuilder();
 
-        foreach (ulong role in configuredRoles)
+        foreach (ulong role in loadedRoleIDs)
         // for (int index = 0; index < configuredRoles.Length; index ++)
         {
             // ulong role = configuredRoles[index];
@@ -107,7 +109,7 @@ public partial class ServerModule(
                 "Click on one of the buttons to assign or unassign the corresponding squad-role to or from yourself." +
                 // "\nMostly used to mention specific squads." +
                 "\n\nAvailable Roles:\n" +
-                string.Join("\n\t", configuredRoles.Select(x => Context.Guild.GetRole(x).Mention))
+                string.Join("\n\t", loadedRoleIDs.Select(x => Context.Guild.GetRole(x).Mention))
             )
             .WithColor(Color.Gold);
             // .WithCurrentTimestamp();
@@ -116,9 +118,9 @@ public partial class ServerModule(
     }
 
     [ComponentInteraction(ROLE_BUTTON_ID_WITH_WILDCARD)]
-    public async Task RoleButtonPressed(string role_id) // Accepts remainder of wildcard, which is the Role ID
+    public async Task RoleButtonPressed(string role_ID) // Accepts remainder of wildcard, which is the Role ID
     {
-        ulong roleId = ulong.Parse(role_id);
+        ulong roleID = ulong.Parse(role_ID);
 
         if (Context.User is not SocketGuildUser user)
         {
@@ -128,17 +130,17 @@ public partial class ServerModule(
             return;
         }
 
-        bool userAlreadyHasRole = user.Roles.Any(x => x.Id == roleId);
-        SocketRole role = Context.Guild.GetRole(roleId);
+        bool userAlreadyHasRole = user.Roles.Any(x => x.Id == roleID);
+        SocketRole role = Context.Guild.GetRole(roleID);
 
         if (userAlreadyHasRole == false)
         {
-            await user.AddRoleAsync(roleId);
+            await user.AddRoleAsync(roleID);
             await RespondAsync($"Role {role.Mention} added to {user.Mention}", ephemeral: true);
         }
         else
         {
-            await user.RemoveRoleAsync(roleId);
+            await user.RemoveRoleAsync(roleID);
             await RespondAsync($"Role {role.Mention} removed from {user.Mention}", ephemeral: true);
         }
     }
