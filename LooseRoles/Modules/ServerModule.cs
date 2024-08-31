@@ -61,7 +61,7 @@ public partial class ServerModule(
         }
 
         EmbedBuilder embedBuilder = new EmbedBuilder()
-            .WithAuthor(Context.User.ToString(), Context.User.GetAvatarUrl() ?? Context.User.GetDefaultAvatarUrl())
+            // .WithAuthor(Context.User.ToString(), Context.User.GetAvatarUrl() ?? Context.User.GetDefaultAvatarUrl())
             .WithTitle("Configured Roles")
             .WithDescription(
                 loadedRoleIDs.Length + " roles found\n" +
