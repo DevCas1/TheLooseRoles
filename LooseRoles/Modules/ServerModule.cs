@@ -20,25 +20,26 @@ public partial class ServerModule(
     private readonly InteractionHandler _handler = handler;
     private readonly IConfiguration _configuration = configuration;
     private readonly Logger<ServerModule> _logger = new();
-    
+
     private ulong[] configuredRoles = [];
 
-    // [SlashCommand("get-self-assign-message-id", "Should return stored message ID if present")]
-    // public async Task GetSelfAssignMessageId()
-    // {
-    //     var selfAssignMessageId = _configuration[SELF_ASSIGN_MESSAGE_ID_TOKEN];
-    //     var logMessage = $"\"_configuration[SELF_ASSIGN_MESSAGE_ID_TOKEN]\" = \"{selfAssignMessageId}\"";
-
-    //     _logger.LogInformation(logMessage);
-    //     await RespondAsync(logMessage);
-    // }
-
-    [SlashCommand("show-discord-settings", "FOR TESTING PURPOSES, WILL BE REMOVED!")]
-    private async Task ShowDiscordSettings()
+    [SlashCommand("show-configured-roles", "FOR TESTING PURPOSES, WILL BE REMOVED!")]
+    public async Task LoadConfiguredRoles()
     {
-        if (Context.User.Id != (await Context.Client.GetApplicationInfoAsync()).Owner.Id)
+        try
         {
-            await RespondAsync("You are not my owner, and therefore are not entitled to using this command.");
+            configuredRoles = _configuration
+                                .GetSection("discord:roleIds")
+                                .GetChildren()
+                                .Select(x => ulong.Parse(x.Value))
+                                .ToArray();
+        }
+        catch (InvalidCastException)
+        {
+            string message = "Could not cast results of to ulong!";
+            _logger.LogError(message);
+            await RespondAsync(message, ephemeral: true);
+            return;
         }
 
         EmbedBuilder embedBuilder = new EmbedBuilder()
@@ -48,14 +49,10 @@ public partial class ServerModule(
             .WithColor(Color.Purple)
             .WithCurrentTimestamp();
 
-        await RespondAsync(embed: embedBuilder.Build(), ephemeral: true);
-    }
-
-    [SlashCommand("load-configured-roles", "FOR TESTING PURPOSES, WILL BE REMOVED!")]
-    private async Task LoadConfiguredRoles()
-    {
-        string? foundRoles = _configuration["discord:roleIds"];
-        await RespondAsync($"foundRoles = {foundRoles}");
+        await RespondAsync(
+            configuredRoles.Length + " roles found:\n" +
+            string.Join("\n  ", configuredRoles.Select(x => $"{Context.Guild.GetRole(x).Mention} (ID: {x})"))
+        );
 
         // return true;
     }
